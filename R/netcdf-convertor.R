@@ -8,11 +8,11 @@
 
 # 1. Set the following to the directory containing the .nc files such as
 # air.sig995.1951.nc
-setwd("C:/Users/Work/AAA/Programming/misc/Azi-Nino")
+setwd("C:/Users/Work/AAA/Programming/ProgramOutput/Nino")
 
 # 2. Supply the latitude and longitude range.  The NOAA data is 
 # every 2.5 degrees. The ranges are supplied as the number of steps of this 
-# size. For latitude, 1 means North Pole, 72 means South Pole. For longitude,
+# size. For latitude, 1 means North Pole, 73 means South Pole. For longitude,
 # 1 means 0 degrees East, 37 is 90E, 73 is 180, 109 is 90W or 270E, 144 is 2.5W.
 
 # These roughly cover Scotland.
@@ -24,15 +24,15 @@ setwd("C:/Users/Work/AAA/Programming/misc/Azi-Nino")
 #lat.range <- 24:50
 #lon.range <- 48:116 
 
-lat.range <- 13:14
-lon.range <- 142:143
+lat.range <- 24:50
+lon.range <- 48:116 
 
 # Then supply the years
 firstyear <- 1950
-lastyear <- 1952
+lastyear <- 1979
 
 # Then supply the output name. paste0() concatenates strings
-outputfilename <- paste0("Scotland-", firstyear, "-", lastyear, ".txt")
+outputfilename <- paste0("Pacific-", firstyear, "-", lastyear, ".txt")
 
 # Example of output
 #  S013E142 S013E143 S014E142 S014E143
@@ -124,4 +124,4 @@ for (i in firstyear:lastyear) {
   setof.Kvals <- rbind(setof.Kvals, make.Kvals.for.year(i))
 }
 
-write.table(x=setof.Kvals, file=outputfilename, quote=FALSE)
+write.table(x=round(setof.Kvals, digits=2), file=outputfilename, quote=FALSE)
