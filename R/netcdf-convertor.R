@@ -6,9 +6,28 @@
 
 # You should be able to use this by editing this section only.
 
-# 1. Set the following to the directory containing the .nc files such as
-# air.sig995.1951.nc
 setwd("C:/Users/Work/AAA/Programming/ProgramOutput/Nino")
+
+
+lat.range <- 13:14
+lon.range <- 142:143
+
+firstyear <- 1950
+lastyear <- 1952
+
+outputfilename <- paste0("Pacific-", firstyear, "-", lastyear, ".txt")
+
+
+###############################################################################
+###############################################################################
+
+#                  Explanation
+
+
+# 1. Use setwd() to set the working directory to the one 
+# containing the .nc files such as air.sig995.1951.nc.
+# Example:
+# setwd("C:/Users/Work/AAA/Programming/ProgramOutput/Nino")
 
 # 2. Supply the latitude and longitude range.  The NOAA data is 
 # every 2.5 degrees. The ranges are supplied as the number of steps of this 
@@ -24,17 +43,22 @@ setwd("C:/Users/Work/AAA/Programming/ProgramOutput/Nino")
 #lat.range <- 24:50
 #lon.range <- 48:116 
 
-lat.range <- 24:50
-lon.range <- 48:116 
+# 3. Supply the years
+# firstyear <- 1950
+# lastyear <- 1952
 
-# Then supply the years
-firstyear <- 1950
-lastyear <- 1979
+# 4. Supply the output name as a text string. paste0() concatenates strings
+# which you nay find handy:
+# outputfilename <- paste0("Pacific-", firstyear, "-", lastyear, ".txt")
 
-# Then supply the output name. paste0() concatenates strings
-outputfilename <- paste0("Pacific-", firstyear, "-", lastyear, ".txt")
 
-# Example of output
+###############################################################################
+###############################################################################
+
+
+#                      Example of output
+
+
 #  S013E142 S013E143 S014E142 S014E143
 #  Y1950P001 281.60000272654 281.570002727211 281.60000272654 280.970002740622
 #  Y1950P002 280.740002745762 280.270002756268 281.070002738386 280.49000275135
