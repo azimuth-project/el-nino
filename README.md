@@ -1,6 +1,6 @@
-Experiments in detection and prediction of El Nino/La Nina events.
+## Experiments in detection and prediction of El Nino/La Nina events.
 
-### netcdf-convertor.R.
+#### netcdf-convertor.R.
 
 This converts netCDF files containing surface temperature data from NOAA (eg  air.sig995.1951.nc) into a format more easily readable by other programs in other languages. You will need to edit it to your requirements:
 
