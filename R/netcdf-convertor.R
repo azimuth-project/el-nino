@@ -12,10 +12,10 @@ setwd("C:/Users/Work/AAA/Programming/ProgramOutput/Nino")
 lat.range <- 13:14
 lon.range <- 142:143
 
-firstyear <- 1950
-lastyear <- 1952
+firstyear <- 1957
+lastyear <- 1958
 
-outputfilename <- paste0("Pacific-", firstyear, "-", lastyear, ".txt")
+outputfilename <- paste0("Scotland-", firstyear, "-", lastyear, ".txt")
 
 
 ###############################################################################
@@ -48,7 +48,7 @@ outputfilename <- paste0("Pacific-", firstyear, "-", lastyear, ".txt")
 # lastyear <- 1952
 
 # 4. Supply the output name as a text string. paste0() concatenates strings
-# which you nay find handy:
+# which you may find handy:
 # outputfilename <- paste0("Pacific-", firstyear, "-", lastyear, ".txt")
 
 
@@ -131,12 +131,14 @@ point.names <- function() {
 make.Kvals.for.year <- function(year) { 
   onc <- open.nc(paste0("air.sig995.", year, ".nc"))
   rnc <- read.nc(onc)
+  close.nc(onc)
   yearof.Kvals <- matrix(0, nrow=365, ncol=n.points)
   for (lat in lat.range) {
     for (lon in lon.range) { 
       yearof.Kvals[, index.table[lat, lon] ] <- rnc$air[ lon, lat, 1:365 ] # ignore leap days
     }
   }
+  
   colnames(yearof.Kvals) <- point.names()
   rownames(yearof.Kvals) <- paste0("Y", year, "P", sprintf("%03d", 1:365))
   yearof.Kvals
