@@ -4,7 +4,7 @@
 # n + m < s, and a subset w of (n+m):s. 
 
 # output: a matrix M with length(w) rows and (2*m+1) columns containing 
-# covariances between  certain subsets of x and y of length N.
+# covariances between  certain subsets of x and y of length n.
 # M[i, m+1-j] = cov(x[(w[i]-j-n+1):(w[i]-j)], y[(w[i]-n+1):(w[i])])
 # M[i, m+1+j] = cov(x[(w[i]-n+1):(w[i])], y[(w[i]-j-n+1):(w[i]-j)])
 # where j is in 0:m.
@@ -65,13 +65,10 @@
 #             = mean( x[(w[i]-j-n+1):(w[i]-j)] * y[(w[i]-n+1:(w[i])] )  -  mean( x[(w[i]-j-n+1):(w[i]-j)] ) * mean( y[(w[i]-n+1:(w[i])] )
 #             = xyrm[w[i], j+1]                                         -  xrm[w[i]-j] * yrm[w[i]]
             
-
-
+# O( (length(w)*n + s) * m )
 
 
 simple.covs <- function(x, y, n, m, w) {
-  #M[i, m+1-j] = cov(x[(w[i]-j-n+1):(w[i]-j)], y[(w[i]-n+1:(w[i])])
-  # M[i, m+1+j] = cov(x[(w[i]-n+1):(w[i])], y[(w[i]-j-n+1):(w[i]-j)]) 
   M <- matrix(0, nrow=length(w), ncol=2*m+1)
   for (i in 1:length(w)) {
     for (j in 0:m) {
@@ -134,20 +131,66 @@ fast.covs <- function(x, y, n, m, w) {
 
 
 
-s <- 365*30
 
-x <- 1:s  + rnorm(s)
-y <- 1:s + rnorm(s)
-n <- 365
-m <- 200
-w <- c(seq(from=1000,to=s,by=10))
-
-
-
-print( system.time( Mf <- simple.covs(x, y, n, m, w) ) )
-print( system.time( Ms <- fast.covs(x, y, n, m, w) ) )
-max(abs(Ms-Mf))
+convolve.covs <- function(x, y, n, m, w) {
+  s <- length(x)
+  stopifnot(s == length(y))
+  stopifnot(n + m <= s)
+  stopifnot(min(w) >= n + m)  
+  stopifnot(max(w) <= s) 
   
+  # this is to improve numerical accuracy
+  x <- x - mean(x)
+  y <- y - mean(y)
+  
+  xcs <- c(rep(0,n), cumsum(x))
+  xrm <- (xcs[-(1:n)] - xcs[-((s+1):(s+n))]) / n
+  ycs <- c(rep(0,n), cumsum(y))
+  yrm <- (ycs[-(1:n)] - ycs[-((s+1):(s+n))]) / n
+
+  
+  
+  convs <- matrix(0, nrow=length(w), ncol=2*m+1)#2*n+m-1)
+  for (i in 1:length(w)) {
+    xn <- x[ (w[i]-n+1):w[i] ] - xrm[ w[i] ]
+    ynm <-  y[ (w[i]-n-m+1):w[i] ]
+    convs[i, (2*m+1):(m+1)] <- convolve(ynm, xn, type="filter")   
+  }
+  for (i in 1:length(w)) {
+    yn <- y[ (w[i]-n+1):w[i] ] - yrm[ w[i] ]
+    xnm <-  x[ (w[i]-n-m+1):w[i] ]
+    convs[i, 1:(m+1)] <- convolve(xnm, yn, type="filter")   
+  }
+  convs <- convs/(n-1)
+}
+  
+
+s=10
+n=3
+m=2
+w = c(6,10)
+set.seed(5)
+x <- rnorm(s)
+y <- rnorm(s)
+
+# 
+# s <- 365*30
+# 
+# x <- sin((1:s)/1000)  + rnorm(s)
+# y <- sin((1:s)/1000) + rnorm(s)
+# n <- 365
+# m <- 200
+# w <- c(seq(from=1000,to=s,by=10))
+# 
+
+
+Ms <- simple.covs(x, y, n, m, w)
+Mf <- fast.covs(x, y, n, m, w)
+Mc <- convolve.covs(x, y, n, m, w)
+  
+Ms
+Mc
+
   
 
 
