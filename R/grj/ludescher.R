@@ -293,7 +293,7 @@ plot.nino.3.4.background.rectangle <- function(mint, maxt, col) {
 }
 
 
-plot.nino.3.4 <- function(firstyear, lastyear, miny, maxy, clr) {
+find.nino.plotting.info <- function(firstyear, lastyear, miny, maxy) {
   nini <- read.table("nino34-anoms.txt", skip=1, header=TRUE)
   nini <- as.matrix(nini)
   w <- which((nini[,"YR"] >= firstyear) & (nini[,"YR"] <= lastyear))
@@ -304,11 +304,24 @@ plot.nino.3.4 <- function(firstyear, lastyear, miny, maxy, clr) {
   yrnini <- miny + scaling * (yrnini - offset)
   zp5 <- miny + scaling * (0.5 - offset)
   time.axis <- firstyear + (0:(length(w)-1))/12
-  # plot the index
-  lines(time.axis, yrnini, col=clr)
-  # plot the 0.5 line
-  lines(c(time.axis[1], time.axis[length(time.axis)]), c(zp5,zp5), col=clr)
+  list(time.axis=time.axis, yrnini=yrnini, zp5=zp5, firstyear=firstyear, lastyear=lastyear, miny=miny, maxy=maxy)
   
+}
+
+plot.nino.zp5.rect <- function(plotinfo, col) {
+  time.axis <- plotinfo$time.axis
+  minx <- time.axis[1]
+  maxx <- time.axis[length(time.axis)]
+  miny <- plotinfo$miny
+  zp5 <- plotinfo$zp5
+  polygon(x=c(minx,maxx,maxx,minx,minx), y=c(zp5,zp5,miny,miny,zp5), border = NA, col=col)
+  
+}
+
+
+
+plot.nino.3.4 <- function(plotinfo, col) {
+  lines(plotinfo$time.axis, plotinfo$yrnini, col=col)
 }
 
 
@@ -324,9 +337,12 @@ SAvals.3D <- seasonally.adjust(Kvals.3D)
 
 SAvals.3D.3x3 <- subsample.3x3(SAvals.3D)
 
+firstyear <- 1952
+lastyear <- 1979
 n <- 365
 m <- 200
-w <- seq(from = 2*365, to=dim(SAvals.3D.3x3)[1], by=73)
+step <- 10
+w <- seq(from = (firstyear-1950)*365, to=dim(SAvals.3D.3x3)[1], by=step)
 
 rmeans <- make.runningmeans(SAvals.3D.3x3)
 
@@ -339,16 +355,16 @@ for (i in 1:length(w)) {
   
 }
 
-
-firstyear <- 1952
-lastyear <- 1979
-plot(firstyear+(1:length(S))/5, S, type='n', xlab="years")
+time.axis <- firstyear+(0:(length(S)-1)) * step / 365
+plot(time.axis, S, type='n', xlab="years")
+ninoplotinfo <- find.nino.plotting.info(firstyear, lastyear, min(S), max(S))
+plot.nino.zp5.rect(ninoplotinfo, "skyblue")
 for (yr in firstyear:(lastyear+1)) {
   lines(c(yr,yr), c(min(S),max(S)), col="grey80")
 }
-lines(firstyear+(0:(length(S)-1))/5, S)
-plot.nino.3.4(firstyear, lastyear, min(S), max(S), "red")
-lines(c(firstyear,(lastyear+1)), rep(2.3,2))
+lines(time.axis, S, col="red")
+plot.nino.3.4(ninoplotinfo, "blue")
+lines(c(firstyear,(lastyear+1)), rep(2.32,2), col="red")
 
 ############################################################################
 
