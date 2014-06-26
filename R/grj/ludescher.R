@@ -151,10 +151,13 @@ make.standarddevs <- function(vals, n, m, d) {
   sds <- array(0, dim=c(2*m+1, dim(vals)[2], dim(vals)[3]))
   for (lat in 1:dim(vals)[2]) {
     for (lon in 1:dim(vals)[3]) {
-      x <- vals[ , lat, lon]
-      for (i in 0:m) {
-        sds[m+1-i ,lat, lon] <- sds[m+1+i ,lat, lon] <- sd(x[(d-n-i+1):(d-i)])
-      }
+      recentx <- vals[(d-n-m+1):d , lat, lon]
+      xrm <- as.vector(filter(recentx, rep(1/n,n), sides=1))
+      x2rm <- as.vector(filter(recentx^2, rep(1/n,n), sides=1))      
+      fsds <- sqrt(x2rm - xrm^2)*sqrt(n/(n-1))
+      fsds <- fsds[n:(n+m)]
+      sds[1:(m+1) ,lat, lon] <- fsds
+      sds[(m+1):(2*m+1) ,lat, lon] <- rev(fsds)
     }
   }
   sds
@@ -162,7 +165,7 @@ make.standarddevs <- function(vals, n, m, d) {
 
 
 
-
+# Not used for Ludescher replication
 # input: 3D array of temperatures vals for s days, corresponding array
 # rmeans of running means of length n, a grid point xlat, xlon,
 # a convolution-length n (eg 365)
@@ -202,7 +205,7 @@ make.cors <- function(vals, rmeans, sds, xlat, xlon, n, m, d) {
       y <- vals[ , ylat, ylon]
       yrm <- rmeans[ , ylat, ylon]
       covs <- convolve.covs(x, y, xrm, yrm, n, m, d)
-      cors[ , ylat, ylon] <- covs / sqrt(sds[ , ylat, ylon] * sds[ , xlat, xlon])      
+      cors[ , ylat, ylon] <- covs / (sds[ , ylat, ylon] * sds[ , xlat, xlon])      
     }
   }
   cors
@@ -234,7 +237,7 @@ in.focus <- function(fa, lat, lon) {
 
 # for each point (lat,lon) in grid, calculates an average link strength between
 #  (lat,lon) and the points in Ludescher et al's "El Nino basin" 
-signalstrength <- function(vals, rmeans, sds, n, m, d) {
+signalstrength <- function(linktype, vals, rmeans, sds, n, m, d) {
   S <- 0
   ba <- basin()
   nba <- length(ba$lats)
@@ -243,11 +246,18 @@ signalstrength <- function(vals, rmeans, sds, n, m, d) {
   for (b in 1:nba) {
     latb <- ba$lats[b]
     lonb <- ba$lons[b]
-    cors <- make.cors(vals, rmeans, sds, latb, lonb, n, m, d)
+    if (linktype == "correlations") {
+      links <- make.cors(vals, rmeans, sds, latb, lonb, n, m, d)
+    } else if (linktype == "covariances") {
+      links <- make.covs(vals, rmeans, latb, lonb, n, m, d)
+    } else {
+      stop()
+    }
+    
     for (lat in 1:nlats) {
       for (lon in 1:nlons) {
         if (!in.focus(ba, lat, lon)) {
-          tdccs <- cors[ , lat, lon]
+          tdccs <- links[ , lat, lon]
           sig <- (max(tdccs) - mean(tdccs)) / sd(tdccs)
           S <- S + sig
         }
@@ -266,39 +276,21 @@ plot.nino.3.4.background.rectangle <- function(mint, maxt, col) {
 }
 
 
-plot.nino.3.4 <- function(year) {
+plot.nino.3.4 <- function(firstyear, lastyear, miny, maxy, clr) {
   nini <- read.table("nino34-anoms.txt", skip=1, header=TRUE)
   nini <- as.matrix(nini)
-  w <- which(nini[,"YR"] == year)
-  stopifnot(length(w)==12)
-  if (year+1 <= nini[nrow(nini), "YR"]) {
-    w <- c(w,w[12]+1)
-  } else {
-    w <- c(w,w[12])
-  }
+  w <- which((nini[,"YR"] >= firstyear) & (nini[,"YR"] <= lastyear))
+  stopifnot((length(w) %% 12) == 0)
   yrnini <- nini[w,"ANOM"]
-  
-  time.axis <- 1:13
-  # empty plot, so text and 'guide' lines can go underneath
-  plot(time.axis, yrnini, type='n', ylim=c(-2.5,2.5), yaxt='n', xaxt='n')
-  
-  plot.nino.3.4.background.rectangle(1.5, 2.5, col="#ff9999ff")
-  plot.nino.3.4.background.rectangle(1, 1.5, col="#ffbbbbff")
-  plot.nino.3.4.background.rectangle(.5, 1, col="#ffddddff")
-  
-  plot.nino.3.4.background.rectangle(-1, -.5, col="#ddddffff")
-  plot.nino.3.4.background.rectangle(-1.5, -1, col="#bbbbffff")
-  plot.nino.3.4.background.rectangle(-2.5, -1.5, col="#9999ffff")
-  
-  text(time.axis[7], 0, paste0(year), col="grey80", cex=2)
-  
-  
-  for (y in c(1,4,7,10,13)) {
-    lines(c(y, y), c(-2,2), col="grey70")
-  }
-  
+  offset <- min(yrnini) 
+  scaling <- (maxy - miny) / (max(yrnini) - min(yrnini))
+  yrnini <- miny + scaling * (yrnini - offset)
+  zp5 <- miny + scaling * (0.5 - offset)
+  time.axis <- firstyear + (0:(length(w)-1))/12
   # plot the index
-  lines(time.axis, yrnini, type='l', ylim=c(-1.5,2.5), col="black", lwd=1, yaxt='n', xaxt='n')
+  lines(time.axis, yrnini, col=clr)
+  # plot the 0.5 line
+  lines(c(time.axis[1], time.axis[length(time.axis)]), c(zp5,zp5), col=clr)
   
 }
 
@@ -321,16 +313,27 @@ w <- seq(from = 2*365, to=dim(SAvals.3D.3x3)[1], by=73)
 
 rmeans <- make.runningmeans(SAvals.3D.3x3)
 
+#test <- make.standarddevs(SAvals.3D.3x3, n, m, d)
+
 S <- rep(0, length(w))
 for (i in 1:length(w)) {
   d <- w[i]
   sds <- make.standarddevs(SAvals.3D.3x3, n, m, d)  
-  S[i] <- signalstrength(SAvals.3D.3x3, rmeans, sds, n, m, d)
+  S[i] <- signalstrength("covariances", SAvals.3D.3x3, rmeans, sds, n, m, d)
   cat("done day", d, "S(d)=", S[i], "\n")
   
 }
 
-plot(S,type='l')
+
+firstyear <- 1952
+lastyear <- 1979
+plot(firstyear+(1:length(S))/5, S, type='n', xlab="years")
+for (yr in firstyear:lastyear) {
+  lines(c(yr,yr), c(min(S),max(S)), col="grey80")
+}
+lines(firstyear+(0:(length(S)-1))/5, S)
+plot.nino.3.4(firstyear, lastyear, min(S), max(S), "red")
+lines(c(firstyear,lastyear), rep(2.3,2))
 
 ############################################################################
 
