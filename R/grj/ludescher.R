@@ -4,6 +4,8 @@
 
 setwd("C:/Users/Work/AAA/Programming/ProgramOutput/Nino")
 
+options(warn=2)
+
 ###################################################################
 ############ For reading in data
 
@@ -112,6 +114,21 @@ make.runningmeans <- function(vals) {
 }
 
 
+
+
+convolve.filter.nextpow2 <- function(delayed, current) {
+  nm <- length(delayed)
+  n <- length(current)
+  m <- nm - n
+  v <- nm+n-1
+  N <- nextn(v, 2)
+  d <- N-v
+  convolve(c(delayed,rep(0,d)), current, type="filter")[1:(m+1)]
+}
+
+
+
+
 # input: two vectors x and y of length s, corresponding running means
 # of period n, two numbers n and m with
 # n + m < s, and a day d in (n+m):s. 
@@ -130,11 +147,11 @@ convolve.covs <- function(x, y, xrm, yrm, n, m, d) {
   
   yn <- y[(d-n+1):d] - yrm[d]
   xnm <-  x[(d-n-m+1):d]    
-  convs[1:(m+1)] <- convolve(xnm, yn, type="filter")   
+  convs[1:(m+1)] <- convolve.filter.nextpow2(xnm, yn)   
   
   xn <- x[(d-n+1):d] - xrm[d]
   ynm <-  y[(d-n-m+1):d]
-  convs[(2*m+1):(m+1)] <- convolve(ynm, xn, type="filter")   
+  convs[(2*m+1):(m+1)] <- convolve.filter.nextpow2(ynm, xn)   
 
   convs <- convs/n
 }
@@ -308,18 +325,16 @@ SAvals.3D <- seasonally.adjust(Kvals.3D)
 SAvals.3D.3x3 <- subsample.3x3(SAvals.3D)
 
 n <- 365
-m <- 295
+m <- 200
 w <- seq(from = 2*365, to=dim(SAvals.3D.3x3)[1], by=73)
 
 rmeans <- make.runningmeans(SAvals.3D.3x3)
-
-#test <- make.standarddevs(SAvals.3D.3x3, n, m, d)
 
 S <- rep(0, length(w))
 for (i in 1:length(w)) {
   d <- w[i]
   sds <- make.standarddevs(SAvals.3D.3x3, n, m, d)  
-  S[i] <- signalstrength("covariances", SAvals.3D.3x3, rmeans, sds, n, m, d)
+  S[i] <- signalstrength("correlations", SAvals.3D.3x3, rmeans, sds, n, m, d)
   cat("done day", d, "S(d)=", S[i], "\n")
   
 }
@@ -328,12 +343,12 @@ for (i in 1:length(w)) {
 firstyear <- 1952
 lastyear <- 1979
 plot(firstyear+(1:length(S))/5, S, type='n', xlab="years")
-for (yr in firstyear:lastyear) {
+for (yr in firstyear:(lastyear+1)) {
   lines(c(yr,yr), c(min(S),max(S)), col="grey80")
 }
 lines(firstyear+(0:(length(S)-1))/5, S)
 plot.nino.3.4(firstyear, lastyear, min(S), max(S), "red")
-lines(c(firstyear,lastyear), rep(2.3,2))
+lines(c(firstyear,(lastyear+1)), rep(2.3,2))
 
 ############################################################################
 
