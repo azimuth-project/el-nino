@@ -116,12 +116,12 @@ make.runningmeans <- function(vals) {
 
 
 
-convolve.filter.nextpow2 <- function(delayed, current) {
+convolve.filter.nextpow2and3 <- function(delayed, current) {
   nm <- length(delayed)
   n <- length(current)
   m <- nm - n
   v <- nm+n-1
-  N <- nextn(v, 2)
+  N <- nextn(v, c(2,3))
   d <- N-v
   convolve(c(delayed,rep(0,d)), current, type="filter")[1:(m+1)]
 }
@@ -147,11 +147,11 @@ convolve.covs <- function(x, y, xrm, yrm, n, m, d) {
   
   yn <- y[(d-n+1):d] - yrm[d]
   xnm <-  x[(d-n-m+1):d]    
-  convs[1:(m+1)] <- convolve.filter.nextpow2(xnm, yn)   
+  convs[1:(m+1)] <- convolve.filter.nextpow2and3(xnm, yn)   
   
   xn <- x[(d-n+1):d] - xrm[d]
   ynm <-  y[(d-n-m+1):d]
-  convs[(2*m+1):(m+1)] <- convolve.filter.nextpow2(ynm, xn)   
+  convs[(2*m+1):(m+1)] <- convolve.filter.nextpow2and3(ynm, xn)   
 
   convs <- convs/n
 }
@@ -236,7 +236,7 @@ make.cors <- function(vals, rmeans, sds, xlat, xlon, n, m, d) {
 
 
 
-basin <- function() {
+ludescher.basin <- function() {
   lats <- c( 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6)
   lons <- c(11,12,13,14,15,16,17,18,19,20,21,22,16,22)
   stopifnot(length(lats) == length(lons))
@@ -254,18 +254,21 @@ in.focus <- function(fa, lat, lon) {
 
 # for each point (lat,lon) in grid, calculates an average link strength between
 #  (lat,lon) and the points in Ludescher et al's "El Nino basin" 
-signalstrength <- function(linktype, vals, rmeans, sds, n, m, d) {
+signalstrength <- function(linktype, focus, vals, rmeans, sds, n, m, d) {
   S <- 0
-  ba <- basin()
-  nba <- length(ba$lats)
+  nba <- length(focus$lats)
   nlats <- dim(vals)[2]
   nlons <- dim(vals)[3]
   for (b in 1:nba) {
-    latb <- ba$lats[b]
-    lonb <- ba$lons[b]
-    if (linktype == "correlations") {
-      links <- make.cors(vals, rmeans, sds, latb, lonb, n, m, d)
-    } else if (linktype == "covariances") {
+    latb <- focus$lats[b]
+    lonb <- focus$lons[b]
+    if (linktype == "abs.correlations") {
+      links <- abs(make.cors(vals, rmeans, sds, latb, lonb, n, m, d))
+    } else if (linktype == "signed.correlations") {
+      links <- make.cors(vals, rmeans, latb, lonb, n, m, d)
+    } else if (linktype == "abs.covariances") {
+      links <- abs(make.covs(vals, rmeans, latb, lonb, n, m, d))
+    } else if (linktype == "signed.covariances") {
       links <- make.covs(vals, rmeans, latb, lonb, n, m, d)
     } else {
       stop()
@@ -273,7 +276,7 @@ signalstrength <- function(linktype, vals, rmeans, sds, n, m, d) {
     
     for (lat in 1:nlats) {
       for (lon in 1:nlons) {
-        if (!in.focus(ba, lat, lon)) {
+        if (!in.focus(focus, lat, lon)) {
           tdccs <- links[ , lat, lon]
           sig <- (max(tdccs) - mean(tdccs)) / sd(tdccs)
           S <- S + sig
@@ -287,6 +290,7 @@ signalstrength <- function(linktype, vals, rmeans, sds, n, m, d) {
 
 
 #########################################################################
+############# For plotting Nino index
 
 plot.nino.3.4.background.rectangle <- function(mint, maxt, col) {
   polygon(x=c(1,13,13,1,1), y=c(maxt,maxt,mint,mint,maxt), border = NA, col=col)
@@ -303,9 +307,11 @@ find.nino.plotting.info <- function(firstyear, lastyear, miny, maxy) {
   scaling <- (maxy - miny) / (max(yrnini) - min(yrnini))
   yrnini <- miny + scaling * (yrnini - offset)
   zp5 <- miny + scaling * (0.5 - offset)
+  labels <- c("-2", "-1", "0", "+1", "+2")
+  ticks <- miny + scaling * (c(-2,-1,0,1,2) - offset)
   time.axis <- firstyear + (0:(length(w)-1))/12
-  list(time.axis=time.axis, yrnini=yrnini, zp5=zp5, firstyear=firstyear, lastyear=lastyear, miny=miny, maxy=maxy)
-  
+  list(time.axis=time.axis, yrnini=yrnini, zp5=zp5, ticks=ticks, labels=labels,
+       firstyear=firstyear, lastyear=lastyear, miny=miny, maxy=maxy)
 }
 
 plot.nino.zp5.rect <- function(plotinfo, col) {
@@ -327,6 +333,7 @@ plot.nino.3.4 <- function(plotinfo, col) {
 
 
 ############################################################################
+#################### Main analysis
 
 Kvals <- as.matrix(read.table(file="Pacific-1950-1979.txt", header=TRUE))
 Kvals.cnames <- colnames(Kvals)
@@ -350,21 +357,28 @@ S <- rep(0, length(w))
 for (i in 1:length(w)) {
   d <- w[i]
   sds <- make.standarddevs(SAvals.3D.3x3, n, m, d)  
-  S[i] <- signalstrength("correlations", SAvals.3D.3x3, rmeans, sds, n, m, d)
-  cat("done day", d, "S(d)=", S[i], "\n")
-  
+  S[i] <- signalstrength("abs.correlations", ludescher.basin(), SAvals.3D.3x3, rmeans, sds, n, m, d)
+  cat("done day", d, "S(d)=", S[i], "\n")  
 }
 
+
+##############################################################################
+############## Plotting results
+
 time.axis <- firstyear+(0:(length(S)-1)) * step / 365
-plot(time.axis, S, type='n', xlab="years")
+par(mar=c(5, 4, 4, 5))
+plot(time.axis, S, type='n', xlab="Years", ylab="Signal strength S", 
+     main="S and theta in red. NINO index in blue, below 0.5C shaded")
 ninoplotinfo <- find.nino.plotting.info(firstyear, lastyear, min(S), max(S))
-plot.nino.zp5.rect(ninoplotinfo, "skyblue")
+plot.nino.zp5.rect(ninoplotinfo, "#eeeeffff")
 for (yr in firstyear:(lastyear+1)) {
   lines(c(yr,yr), c(min(S),max(S)), col="grey80")
 }
 lines(time.axis, S, col="red")
 plot.nino.3.4(ninoplotinfo, "blue")
-lines(c(firstyear,(lastyear+1)), rep(2.32,2), col="red")
+lines(c(firstyear,(lastyear+1)), rep(2.82,2), col="red")
+axis(side=4, at=ninoplotinfo$ticks, labels=ninoplotinfo$labels)
+mtext(text="NINO 3.4 index", side = 4, line = 3)
 
 ############################################################################
 
