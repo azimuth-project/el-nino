@@ -157,7 +157,18 @@ convolve.covs <- function(x, y, xrm, yrm, n, m, d) {
 }
 
 
-
+# FOR TESTING
+make.standarddevs.for.one.point <- function(vals, lat, lon, n, m, d) {
+  sds <- rep(0, 2*m+1)
+  recentx <- vals[(d-n-m+1):d , lat, lon]
+  xrm <- as.vector(filter(recentx, rep(1/n,n), sides=1))
+  x2rm <- as.vector(filter(recentx^2, rep(1/n,n), sides=1))      
+  fsds <- sqrt(x2rm - xrm^2)*sqrt(n/(n-1))
+  fsds <- fsds[n:(n+m)]
+  sds[1:(m+1)] <- fsds
+  sds[(m+1):(2*m+1)] <- rev(fsds)
+  sds
+}
 
 
 # input: 3D array of temperatures vals for s days, a convolution-length n (eg 365)
@@ -174,11 +185,45 @@ make.standarddevs <- function(vals, n, m, d) {
       fsds <- sqrt(x2rm - xrm^2)*sqrt(n/(n-1))
       fsds <- fsds[n:(n+m)]
       sds[1:(m+1) ,lat, lon] <- fsds
-      sds[(m+1):(2*m+1) ,lat, lon] <- rev(fsds)
+      sds[(m+1):(2*m+1) ,lat, lon] <- rev(fsds)      
     }
   }
   sds
 }
+
+
+# FOR TESTING
+make.covs.for.one.pair <- function(vals, rmeans, xlat, xlon, ylat, ylon, n, m, d) {
+  x <- vals[ , xlat, xlon]
+  xrm <- rmeans[, xlat, xlon]           
+  y <- vals[ , ylat, ylon]
+  yrm <- rmeans[ , ylat, ylon]
+  convolve.covs(x, y, xrm, yrm, n, m, d)
+}
+
+
+
+# Not used for Ludescher replication
+# input: 3D array of temperatures vals for s days, corresponding array
+# rmeans of running means of length n, a grid point xlat, xlon,
+# a convolution-length n (eg 365)
+# a maximum time-delay m (eg 200), and a day d in (n+m):s. 
+# output: 3D array of time-delayed covariances for point (xlat, xlon) for day d. 
+# The first dimension is the time delay -m:m, second is lat, third lon
+make.covs <- function(vals, rmeans, xlat, xlon, n, m, d) {
+  covs <- array(0, dim=c(2*m+1, dim(vals)[2], dim(vals)[3]))
+  x <- vals[ , xlat, xlon]
+  xrm <- rmeans[, xlat, xlon]           
+  for (ylat in 1:dim(vals)[2]) {#
+   for (ylon in 1:dim(vals)[3]) {
+     y <- vals[ , ylat, ylon]
+     yrm <- rmeans[ , ylat, ylon]
+     covs[ , ylat, ylon] <- convolve.covs(x, y, xrm, yrm, n, m, d)
+   }
+  }
+  covs
+}
+
 
 
 
@@ -228,18 +273,33 @@ in.focus <- function(fa, lat, lon) {
 
 
 
+make.links.to.one.point <- function(linktype, lat, lon, vals, rmeans, sds, n, m, d) {
+  if (linktype == "abs.correlations") {
+    links <- abs(make.cors(vals, rmeans, sds, lat, lon, n, m, d))
+  } else if (linktype == "signed.correlations") {
+    links <- make.cors(vals, rmeans, sds, lat, lon, n, m, d)
+  } else if (linktype == "abs.covariances") {
+    links <- abs(make.covs(vals, rmeans, lat, lon, n, m, d))
+  } else if (linktype == "signed.covariances") {
+    links <- make.covs(vals, rmeans, lat, lon, n, m, d)
+  } else {
+    stop()
+  }
+  links 
+}
+
+
+
 # for each point (lat,lon) in grid, calculates an average link strength between
 #  (lat,lon) and the points in Ludescher et al's "El Nino basin" 
-signalstrength <- function(focus, vals, rmeans, sds, n, m, d) {
+signalstrength <- function(linktype, focus, vals, rmeans, sds, n, m, d) {
   S <- 0
   nba <- length(focus$lats)
   nlats <- dim(vals)[2]
   nlons <- dim(vals)[3]
   for (b in 1:nba) {
-    latb <- focus$lats[b]
-    lonb <- focus$lons[b]
-    links <- abs(make.cors(vals, rmeans, sds, latb, lonb, n, m, d))
-   
+    links <- make.links.to.one.point(linktype, focus$lats[b], focus$lons[b], 
+                                     vals, rmeans, sds, n, m, d)
     for (lat in 1:nlats) {
       for (lon in 1:nlons) {
         if (!in.focus(focus, lat, lon)) {
@@ -257,6 +317,11 @@ signalstrength <- function(focus, vals, rmeans, sds, n, m, d) {
 
 #########################################################################
 ############# For plotting Nino index
+
+plot.nino.3.4.background.rectangle <- function(mint, maxt, col) {
+  polygon(x=c(1,13,13,1,1), y=c(maxt,maxt,mint,mint,maxt), border = NA, col=col)
+}
+
 
 find.nino.plotting.info <- function(firstyear, lastyear, miny, maxy) {
   nini <- read.table("nino34-anoms.txt", skip=1, header=TRUE)
@@ -309,16 +374,39 @@ firstyear <- 1952
 lastyear <- 1979
 n <- 365
 m <- 200
-step <- 10
+step <- 100
 w <- seq(from = (firstyear-1950)*365, to=dim(SAvals.3D.3x3)[1], by=step)
 
 rmeans <- make.runningmeans(SAvals.3D.3x3, n)
+
+# TESTING 
+# lat <- 8
+# lon <- 20
+# d <- 10000
+# stddevs <- make.standarddevs.for.one.point(SAvals.3D.3x3, lat, lon, n, m, d)
+# selfcovs <- make.covs.for.one.pair(SAvals.3D.3x3, rmeans, lat, lon, lat, lon, n, m, d)
+# matplot(1:(2*m+1), cbind(stddevs, sqrt(abs(selfcovs))), type='l')
+# stop()
+
+lat <- 5
+lon <- 1
+d <- 8*365
+sds <- make.standarddevs(SAvals.3D.3x3, n, m, d)  
+links <- make.links.to.one.point("signed.covariances", lat, lon, SAvals.3D.3x3, rmeans, sds, n, m, d)
+oldpar <- par(mfcol=c(5,4), mar=c(2.5, 5, 0.5, 2))
+for (i in 0:19) {
+  plot((-m:m), links[,lat,lon+i], type='l', ylim=c(min(links),max(links)))  
+  
+} 
+par(oldpar)
+stop()
+
 
 S <- rep(0, length(w))
 for (i in 1:length(w)) {
   d <- w[i]
   sds <- make.standarddevs(SAvals.3D.3x3, n, m, d)  
-  S[i] <- signalstrength(ludescher.basin(), SAvals.3D.3x3, rmeans, sds, n, m, d)
+  S[i] <- signalstrength("abs.correlations", ludescher.basin(), SAvals.3D.3x3, rmeans, sds, n, m, d)
   cat("done day", d, "S(d)=", S[i], "\n")  
 }
 
