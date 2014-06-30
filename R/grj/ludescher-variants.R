@@ -274,16 +274,18 @@ in.focus <- function(fa, lat, lon) {
 
 
 make.links.to.one.point <- function(linktype, lat, lon, vals, rmeans, sds, n, m, d) {
-  if (linktype == "abs.correlations") {
+  if (linktype == "abs_corrs") {
     links <- abs(make.cors(vals, rmeans, sds, lat, lon, n, m, d))
-  } else if (linktype == "signed.correlations") {
+  } else if (linktype == "sgn_corrs") {
     links <- make.cors(vals, rmeans, sds, lat, lon, n, m, d)
-  } else if (linktype == "abs.covariances") {
+  } else if (linktype == "abs_covs") {
     links <- abs(make.covs(vals, rmeans, lat, lon, n, m, d))
-  } else if (linktype == "signed.covariances") {
+  } else if (linktype == "sgn_covs") {
     links <- make.covs(vals, rmeans, lat, lon, n, m, d)
+  } else if (linktype == "stddevs") {
+    links <- sds    # not really a link; just a convenient implementation
   } else {
-    stop()
+    stop("Unknown link type")
   }
   links 
 }
@@ -292,7 +294,7 @@ make.links.to.one.point <- function(linktype, lat, lon, vals, rmeans, sds, n, m,
 
 # for each point (lat,lon) in grid, calculates an average link strength between
 #  (lat,lon) and the points in Ludescher et al's "El Nino basin" 
-signalstrength <- function(linktype, focus, vals, rmeans, sds, n, m, d) {
+signalstrength <- function(linktype, sigtype, focus, vals, rmeans, sds, n, m, d) {
   S <- 0
   nba <- length(focus$lats)
   nlats <- dim(vals)[2]
@@ -304,7 +306,17 @@ signalstrength <- function(linktype, focus, vals, rmeans, sds, n, m, d) {
       for (lon in 1:nlons) {
         if (!in.focus(focus, lat, lon)) {
           tdccs <- links[ , lat, lon]
-          sig <- (max(tdccs) - mean(tdccs)) / sd(tdccs)
+          if (sigtype == "ludescher") {
+            sig <- (max(tdccs) - mean(tdccs)) / sd(tdccs)
+          } else if (sigtype == "smalldelay") {
+            mid <- (length(tdccs) + 1) / 2
+            rnge <- min(10, mid-1)
+            mx <- max(tdccs[(mid-rnge):(mid+rnge)])
+            #noiz <- mean(abs(tdccs[-1] - tdccs[-length(tdccs)]))
+            #sig <- mx / noiz
+            sig <- mx
+          }
+          
           S <- S + sig
         }
       }
@@ -314,8 +326,29 @@ signalstrength <- function(linktype, focus, vals, rmeans, sds, n, m, d) {
 }
 
 
+make.signal.strength <- function(linktype, sigtype, vals, rmeans, params) {
+  firstyear <- params$firstyear
+  lastyear <- params$lastyear
+  n <- params$n
+  m <- params$m
+  step <- params$step
+  w <- seq(from = (firstyear-1950)*365, to=dim(vals)[1], by=step)
+  S <- rep(0, length(w))
+  for (i in 1:length(w)) {
+    d <- w[i]
+    sds <- make.standarddevs(vals, n, m, d)  
+    S[i] <- signalstrength(linktype, sigtype, ludescher.basin(), vals, rmeans, sds, n, m, d)
+    cat("done day", d, "S(d)=", S[i], "\n")  
+  }
+  S
+}
 
-#########################################################################
+
+
+##############################################################################
+############## Plotting results
+
+
 ############# For plotting Nino index
 
 plot.nino.3.4.background.rectangle <- function(mint, maxt, col) {
@@ -359,77 +392,129 @@ plot.nino.3.4 <- function(plotinfo, col) {
 
 
 ############################################################################
+# Pages of 5 by 12 cross-correlation graphs.
+
+make.graphs.of.links <- function(linktype, description, vals, rmeans, lat, lon, d, params) {
+  firstyear <- params$firstyear
+  lastyear <- params$lastyear
+  n <- params$n
+  m <- params$m
+  step <- params$step
+  sds <- make.standarddevs(vals, n, m, d)  
+  links <- make.links.to.one.point(linktype, lat, lon, vals, rmeans, sds, n, m, d)
+  year <- 1950+floor((d-1)/365)
+  dayinyear <- 1+(d-1)%%365
+  png(paste0(linktype, "_", year, "_", dayinyear, "_", lat, "_", lon, "_", d, ".png"), width=1200, height=600, pointsize=18)  
+  nfmat <- matrix(c((1:60),rep(61,12)), nrow=6, ncol=12, byrow=TRUE)
+  nf <- layout(nfmat)
+  layout.show(nf)
+  oldpar <- par(mar=rep(.1,4))
+  for (laty in seq(from=1, to=9, by=2)) {
+    for (lony in seq(from=1, to=23, by=2)) {
+      plot((-m:m), abs(links[,laty,lony]), type='l', ylim=c(min(links),max(links)), 
+           col="grey", xaxt='n', yaxt='n', ann=FALSE)  
+      lines((-m:m), links[,laty,lony], ylim=c(min(links),max(links)))
+      lines(c(-m,m), c(0,0)) 
+      cex=1
+      col = "grey"
+      if (laty==lat && lony==lon) {
+        cex <- 1.5
+      }
+      if (laty==5 && lony >= 11  && lony <= 21) {
+        col="red"
+      }
+      text(x=-m, y=max(links), paste0(laty, ",", lony), adj=c(0,1), col=col, cex=cex)
+    }  
+  }
+  plot(c(-10,10), c(-2,2), type='n', xaxt='n', yaxt='n', ann=FALSE)
+  if (linktype == "abs_corrs") {
+    text(0,1, paste0("Delayed cross-abs(correlations) between grid point (", lat, ",", lon, 
+                     ") and others in the Pacific",
+                     " for year ", year, ", day ", dayinyear, ". "))    
+  } else if (linktype == "sgn_corrs") {
+    text(0,1, paste0("Delayed cross-correlations between grid point (", lat, ",", lon, 
+                     ") and others in the Pacific",
+                     " for year ", year, ", day ", dayinyear, ". "))    
+    text(0,0, "The black wiggles show the value for tau=-200 to 200, the grey wiggles the absolute value (where it differs)")    
+  } else if (linktype == "abs_covs") {
+    text(0,1, paste0("Delayed cross-abs(covariances) between grid point (", lat, ",", lon, 
+                     ") and others in the Pacific",
+                     " for year ", year, ", day ", dayinyear, ". "))        
+  } else if (linktype == "sgn_covs") {
+    text(0,1, paste0("Delayed cross-covariances between grid point (", lat, ",", lon, 
+                     ") and others in the Pacific",
+                     " for year ", year, ", day ", dayinyear, ". "))    
+    text(0,0, "The black wiggles show the value for tau=-200 to 200, the grey wiggles the absolute value (where it differs)")      
+  } else if (linktype == "stddevs") {
+    text(0,1, paste0("Delayed stddevs at each grid point in the Pacific",
+                     " for year ", year, ", day ", dayinyear, ". "))      
+    text(0,0, "The black wiggles show the value for tau=-200 to 200")      
+  } 
+  text(0,-1,paste0("The y-axis range is ", round(min(links), digits=2), " to ", round(max(links), digits=2), "."))
+  par(oldpar)
+  dev.off()
+}
+
+
+
+make.setof.graphs.of.links <- function(linktype, description, vals, rmeans, params) {
+  make.graphs.of.links(linktype, description, vals, rmeans, 3, 5, 7*365, params)
+  make.graphs.of.links(linktype, description, vals, rmeans, 3, 5, 8*365, params)
+  make.graphs.of.links(linktype, description, vals, rmeans, 3, 5, 9*365, params)
+  make.graphs.of.links(linktype, description, vals, rmeans, 5, 13, 7*365, params)
+  make.graphs.of.links(linktype, description, vals, rmeans, 5, 13, 8*365, params)
+  make.graphs.of.links(linktype, description, vals, rmeans, 5, 13, 9*365, params)
+}
+
+
+# main plot 
+plot.signalstrength.vs.nino <- function(S, params) {
+  firstyear <- params$firstyear
+  lastyear <- params$lastyear
+  n <- params$n
+  m <- params$m
+  step <- params$step
+  time.axis <- firstyear+(0:(length(S)-1)) * step / 365
+  par(mar=c(5, 4, 4, 5))
+  plot(time.axis, S, type='n', xlab="Years", ylab="Signal strength S", 
+       main="S and theta in red. NINO index in blue, below 0.5C shaded")
+  ninoplotinfo <- find.nino.plotting.info(firstyear, lastyear, min(S), max(S))
+  plot.nino.zp5.rect(ninoplotinfo, "#eeeeffff")
+  for (yr in firstyear:(lastyear+1)) {
+    lines(c(yr,yr), c(min(S),max(S)), col="grey80")
+  }
+  lines(time.axis, S, col="red")
+  plot.nino.3.4(ninoplotinfo, "blue")
+  lines(c(firstyear,(lastyear+1)), rep(20,2), col="red")
+  axis(side=4, at=ninoplotinfo$ticks, labels=ninoplotinfo$labels)
+  mtext(text="NINO 3.4 index", side = 4, line = 3)
+}
+
+
+
+############################################################################
 #################### Main analysis
 
 Kvals <- as.matrix(read.table(file="Pacific-1950-1979.txt", header=TRUE))
-Kvals.cnames <- colnames(Kvals)
+analysis.params <- list(firstyear=1952, lastyear=1979, n=365, m=200, step=100)
 
 Kvals.3D <- data.to.3D(Kvals)
-
+rm(Kvals)
 SAvals.3D <- seasonally.adjust(Kvals.3D)
-
+rm(Kvals.3D)
 SAvals.3D.3x3 <- subsample.3x3(SAvals.3D)
-
-firstyear <- 1952
-lastyear <- 1979
-n <- 365
-m <- 200
-step <- 100
-w <- seq(from = (firstyear-1950)*365, to=dim(SAvals.3D.3x3)[1], by=step)
-
-rmeans <- make.runningmeans(SAvals.3D.3x3, n)
-
-# TESTING 
-# lat <- 8
-# lon <- 20
-# d <- 10000
-# stddevs <- make.standarddevs.for.one.point(SAvals.3D.3x3, lat, lon, n, m, d)
-# selfcovs <- make.covs.for.one.pair(SAvals.3D.3x3, rmeans, lat, lon, lat, lon, n, m, d)
-# matplot(1:(2*m+1), cbind(stddevs, sqrt(abs(selfcovs))), type='l')
-# stop()
-
-lat <- 5
-lon <- 1
-d <- 8*365
-sds <- make.standarddevs(SAvals.3D.3x3, n, m, d)  
-links <- make.links.to.one.point("signed.covariances", lat, lon, SAvals.3D.3x3, rmeans, sds, n, m, d)
-oldpar <- par(mfcol=c(5,4), mar=c(2.5, 5, 0.5, 2))
-for (i in 0:19) {
-  plot((-m:m), links[,lat,lon+i], type='l', ylim=c(min(links),max(links)))  
-  
-} 
-par(oldpar)
-stop()
+SAvals.3D.3x3.rm <- make.runningmeans(SAvals.3D.3x3, analysis.params$n)
 
 
-S <- rep(0, length(w))
-for (i in 1:length(w)) {
-  d <- w[i]
-  sds <- make.standarddevs(SAvals.3D.3x3, n, m, d)  
-  S[i] <- signalstrength("abs.correlations", ludescher.basin(), SAvals.3D.3x3, rmeans, sds, n, m, d)
-  cat("done day", d, "S(d)=", S[i], "\n")  
-}
+make.setof.graphs.of.links("stddevs", "stddevs", SAvals.3D.3x3, SAvals.3D.3x3.rm, analysis.params)
+make.setof.graphs.of.links("sgn_covs", "covariances", SAvals.3D.3x3, SAvals.3D.3x3.rm, analysis.params)
+make.setof.graphs.of.links("sgn_corrs", "correlations", SAvals.3D.3x3, SAvals.3D.3x3.rm, analysis.params)
 
 
-##############################################################################
-############## Plotting results
+#S <- make.signal.strength("abs_covs", "smalldelay", SAvals.3D.3x3, SAvals.3D.3x3.rm, analysis.params)
+#plot.signalstrength.vs.nino(S, analysis.params)
 
-time.axis <- firstyear+(0:(length(S)-1)) * step / 365
-par(mar=c(5, 4, 4, 5))
-plot(time.axis, S, type='n', xlab="Years", ylab="Signal strength S", 
-     main="S and theta in red. NINO index in blue, below 0.5C shaded")
-ninoplotinfo <- find.nino.plotting.info(firstyear, lastyear, min(S), max(S))
-plot.nino.zp5.rect(ninoplotinfo, "#eeeeffff")
-for (yr in firstyear:(lastyear+1)) {
-  lines(c(yr,yr), c(min(S),max(S)), col="grey80")
-}
-lines(time.axis, S, col="red")
-plot.nino.3.4(ninoplotinfo, "blue")
-lines(c(firstyear,(lastyear+1)), rep(2.82,2), col="red")
-axis(side=4, at=ninoplotinfo$ticks, labels=ninoplotinfo$labels)
-mtext(text="NINO 3.4 index", side = 4, line = 3)
 
-############################################################################
 
 
 
