@@ -34,6 +34,27 @@ year.range.from.rownames <- function(rnames) {
   year.from.label(rnames[1]) : year.from.label(rnames[length(rnames)])
 }
 
+# converts vector of days, where day 1 is first day in data, to vector of years.
+years.from.days <- function(params, days) {
+params$datayears[1] + floor((days-1)/365)
+}
+
+# converts vector of days, where day 1 is first day in data, to a vector of day-in-years.
+dayinyears.from.days <- function(days) {
+  1 + (days-1)%%365
+}
+
+# converts vector of days, where day 1 is first day in data, to a vector of names like "Y1952D071"
+rownames.for.output <- function(params, days) {  
+paste0("Y", years.from.days(params, days), "D", sprintf("%03d", dayinyears.from.days(days)) )
+}
+
+# some sanity checks 
+check.params <- function(vals, params) {
+  stopifnot(dim(vals)[1] %% 365 == 0)
+  stopifnot(identical(params$datayears, year.range.from.rownames(vals)))
+  stopifnot((params$firstyear - params$datayears[1]) * 365 > params$n + params$m)                  
+}
 
 
 #####################################################################
@@ -56,8 +77,7 @@ data.to.3D <- function(vals) {
 }
 
 # subtracts the climatological seasonal cycle (mean over years for each grid point, each day-in-year)
-seasonally.adjust <- function(vals) {
-  stopifnot(dim(vals)[1] %% 365 == 0)
+seasonally.adjust <- function(vals) {  
   n.years <- as.integer(dim(vals)[1]/365)
   offsets <- (0:(n.years-1))*365
   y.means <- array(0, dim=c(365, dim(vals)[2], ncols=dim(vals)[3]))
@@ -83,12 +103,19 @@ subsample.3x3 <- function(vals) {
   stopifnot(dim(vals)[3] %% 3 == 0)
   n.sslats <- dim(vals)[2]/3
   n.sslons <- dim(vals)[3]/3
-  ssvals <- array(0, dim=c(dim(vals)[1], n.sslats, n.sslons))  
-  for (d in 1:dim(vals)[1]) {
-    for (slat in 1:n.sslats) {
-      for (slon in 1:n.sslons) {
-        ssvals[d, slat, slon] <- mean(vals[d, (3*slat-2):(3*slat), (3*slon-2):(3*slon)])
-      }
+  ssvals <- array(0, dim=c(dim(vals)[1], n.sslats, n.sslons))    
+  for (slat in 1:n.sslats) {
+    for (slon in 1:n.sslons) {
+      ssvals[ , slat, slon] <- ssvals[ , slat, slon] + vals[ , 3*slat-2, 3*slon-2]
+      ssvals[ , slat, slon] <- ssvals[ , slat, slon] + vals[ , 3*slat-1, 3*slon-2]
+      ssvals[ , slat, slon] <- ssvals[ , slat, slon] + vals[ , 3*slat  , 3*slon-2]
+      ssvals[ , slat, slon] <- ssvals[ , slat, slon] + vals[ , 3*slat-2, 3*slon-1]
+      ssvals[ , slat, slon] <- ssvals[ , slat, slon] + vals[ , 3*slat-1, 3*slon-1]
+      ssvals[ , slat, slon] <- ssvals[ , slat, slon] + vals[ , 3*slat  , 3*slon-1]
+      ssvals[ , slat, slon] <- ssvals[ , slat, slon] + vals[ , 3*slat-2, 3*slon  ]
+      ssvals[ , slat, slon] <- ssvals[ , slat, slon] + vals[ , 3*slat-1, 3*slon  ]
+      ssvals[ , slat, slon] <- ssvals[ , slat, slon] + vals[ , 3*slat  , 3*slon  ]
+      ssvals[ , slat, slon] <- ssvals[ , slat, slon] / 9
     }
   }
   ssvals
@@ -326,21 +353,26 @@ signalstrength <- function(linktype, sigtype, focus, vals, rmeans, sds, n, m, d)
 }
 
 
-make.signal.strength <- function(linktype, sigtype, vals, rmeans, params) {
+make.signal.strength <- function(vals, rmeans, params) {
+  linktype <- params$linktype 
+  sigtype <- params$sigtype  
   firstyear <- params$firstyear
   lastyear <- params$lastyear
   n <- params$n
   m <- params$m
   step <- params$step
-  w <- seq(from = (firstyear-1950)*365, to=dim(vals)[1], by=step)
-  S <- rep(0, length(w))
-  for (i in 1:length(w)) {
-    d <- w[i]
+  days <- seq(from = (firstyear-1950)*365, to=dim(vals)[1], by=step)
+  S <- rep(0, length(days))
+  for (i in 1:length(days)) {
+    d <- days[i]
     sds <- make.standarddevs(vals, n, m, d)  
     S[i] <- signalstrength(linktype, sigtype, ludescher.basin(), vals, rmeans, sds, n, m, d)
     cat("done day", d, "S(d)=", S[i], "\n")  
   }
-  S
+  signal <- matrix(S, ncol=1, nrow=length(S))
+  rownames(signal) <- rownames.for.output(params, days)
+  colnames(signal) <- "SignalStrength"
+  signal
 }
 
 
@@ -496,7 +528,11 @@ plot.signalstrength.vs.nino <- function(S, params) {
 #################### Main analysis
 
 Kvals <- as.matrix(read.table(file="Pacific-1950-1979.txt", header=TRUE))
-analysis.params <- list(firstyear=1952, lastyear=1979, n=365, m=200, step=100)
+analysis.params <- list(datayears=year.range.from.rownames(Kvals), 
+                        firstyear=1952, lastyear=1979, n=365, m=200, step=100,
+                        linktype="abs_corrs", sigtype="ludescher")
+check.params(Kvals, analysis.params)
+
 
 Kvals.3D <- data.to.3D(Kvals)
 rm(Kvals)
@@ -505,30 +541,39 @@ rm(Kvals.3D)
 SAvals.3D.3x3 <- subsample.3x3(SAvals.3D)
 SAvals.3D.3x3.rm <- make.runningmeans(SAvals.3D.3x3, analysis.params$n)
 
-
-make.setof.graphs.of.links("stddevs", "stddevs", SAvals.3D.3x3, SAvals.3D.3x3.rm, analysis.params)
-make.setof.graphs.of.links("sgn_covs", "covariances", SAvals.3D.3x3, SAvals.3D.3x3.rm, analysis.params)
-make.setof.graphs.of.links("sgn_corrs", "correlations", SAvals.3D.3x3, SAvals.3D.3x3.rm, analysis.params)
-
-
-#S <- make.signal.strength("abs_covs", "smalldelay", SAvals.3D.3x3, SAvals.3D.3x3.rm, analysis.params)
-#plot.signalstrength.vs.nino(S, analysis.params)
+# 
+# make.setof.graphs.of.links("stddevs", "stddevs", SAvals.3D.3x3, SAvals.3D.3x3.rm, analysis.params)
+# make.setof.graphs.of.links("sgn_covs", "covariances", SAvals.3D.3x3, SAvals.3D.3x3.rm, analysis.params)
+# make.setof.graphs.of.links("sgn_corrs", "correlations", SAvals.3D.3x3, SAvals.3D.3x3.rm, analysis.params)
 
 
+corrsS <- make.signal.strength(SAvals.3D.3x3, SAvals.3D.3x3.rm, analysis.params)
+analysis.params$linktype <- "abs_covs"
+covsS <- make.signal.strength(SAvals.3D.3x3, SAvals.3D.3x3.rm, analysis.params)
+matplot(1:nrow(covsS), cbind(corrsS, covsS, 2.82), type='l', 
+        xlab="From 1952 to 1979 in 100-day steps", 
+        ylab="Signal strength S",
+        main="Correlations (black) vs covariances (red) used to make S")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+# 
+# plot.signalstrength.vs.nino(signal, analysis.params)
+# write.table(round(signal, digits=6), 
+#             file=paste0("signal-", analysis.params$linktype, "-", analysis.params$sigtype, ".txt"),
+#             quote=FALSE)
+# 
+# 
+# 
+# corrsS <- read.table(file=paste0("signal-", "abs_corrs", "-", "ludescher", ".txt"), header=TRUE)
+# covsS <- read.table(file=paste0("signal-", "abs_covs", "-", "ludescher", ".txt"), header=TRUE)
+# matplot(1:nrow(covsS), cbind(corrsS, covsS, 2.82), type='l', 
+#         xlab="From 1952 to 1979 in 100-day steps", 
+#         ylab="Signal strength S",
+#         main="Correlations (black) vs covariances (red) used to make S")
+# 
+# 
+# 
+# 
+# 
 
 
 
