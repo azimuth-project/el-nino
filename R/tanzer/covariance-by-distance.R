@@ -1,5 +1,7 @@
 setwd("/Users/macbookpro/home/elnino/data")
 
+# output is csv data printed to the console
+
 # functions by Graham Jones:
 
 lat.from.label <- function(label) {
