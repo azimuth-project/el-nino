@@ -1,4 +1,6 @@
-## Experiments in detection and prediction of El Nino/La Nina events.
+## Experiments in El Nino analysis and prediction
+
+This software is connected to the Azimuth Code Project **[Experiments in El Nino analysis and prediction](http://www.azimuthproject.org/azimuth/show/Experiments%20in%20El%20Ni%C3%B1o%20analysis%20and%20prediction)**. 
 
 #### R / netcdf-convertor.R.
 
@@ -14,7 +16,16 @@ Then start R, and copy and paste the whole file into the R console. (There are o
 
 #### R / grj / ludescher.R
 
-Aimed at replicating Ludescher et al, 2013. As of 26 June 2014, it is close, but not identical.
+Aimed at replicating Ludescher et al, 2013. As of 26 June 2014, it is close, but not identical.  For an explanation see  [Part 4](http://johncarlosbaez.wordpress.com/2014/07/08/el-nino-project-part-4/) of the El Ni&ntilde;o Project series.
+
+
+#### R / average-link-strength.txt
+
+This file has the average link strength S as computed by `ludescher.R` at 10-day intervals, starting from day 730 and going until day 12040, where day 1 is the first of January 1948.  For an explanation see  [Part 4](http://johncarlosbaez.wordpress.com/2014/07/08/el-nino-project-part-4/) of the El Ni&ntilde;o Project series.
+
+#### R / average-link-strength-1948-2013.txt
+
+The second column in this file lists the average link strengths S as computed by `ludescher.R` at 10-day intervals, starting from day 730, and going until day 24090, where day 1 is the first of January 1948.  The first column numbers these items from 1 to 2337.  For an explanation see  [Part 4](http://johncarlosbaez.wordpress.com/2014/07/08/el-nino-project-part-4/) of the El Ni&ntilde;o Project series.
 
 #### R / grj / covariances-basin-vs-rest.R
 
