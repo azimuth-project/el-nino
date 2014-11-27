@@ -25,11 +25,11 @@ This file has the average link strength S as computed by `ludescher.R` at 10-day
 
 #### R / average-link-strength-1948-2013.txt
 
-The second column in this file lists the average link strengths S as computed by `ludescher.R` at 10-day intervals, starting from day 730, and going until day 24090, where day 1 is the first of January 1948.  The first column numbers these items from 1 to 2337.  For an explanation see  [Part 4](http://johncarlosbaez.wordpress.com/2014/07/08/el-nino-project-part-4/) of the El Ni&ntilde;o Project series.
+The second column in this file lists the average link strengths S as computed by `ludescher.R` at 10-day intervals, starting from day 730, and going until day 24090, where day 1 is 1 January 1948.  The first column numbers these items from 1 to 2337.  For an explanation see  [Part 4](http://johncarlosbaez.wordpress.com/2014/07/08/el-nino-project-part-4/) of the El Ni&ntilde;o Project series.
 
 #### R / average-link-strength-daily.txt
 
-The second column in this file lists the average link strengths S as computed by `ludescher.R` at daily intervals, starting from day 730, and going until day 24090, where day 1 is the first of January 1948. The first column numbers these items from 730 to 24090. For an explanation see [Part 4](http://johncarlosbaez.wordpress.com/2014/07/08/el-nino-project-part-4/) of the El Niño Project series.
+The second column in this file lists the average link strengths S as computed by Blake Pollard using a modified version of `ludescher.R` at daily intervals, starting from day 730, and going until day 24090, where day 1 is 1 January 1948. The first column numbers these items from 730 to 24090. For an explanation see [Part 4](http://johncarlosbaez.wordpress.com/2014/07/08/el-nino-project-part-4/) of the El Niño Project series.
 
 #### R / grj / covariances-basin-vs-rest.R
 
