@@ -1,6 +1,6 @@
 ## Experiments in El Nino analysis and prediction
 
-This software is connected to the Azimuth Code Project **[Experiments in El Nino analysis and prediction](http://www.azimuthproject.org/azimuth/show/Experiments%20in%20El%20Ni%C3%B1o%20analysis%20and%20prediction)**. 
+This software is connected to the Azimuth Code Project's **[Experiments in El Nino analysis and prediction](http://www.azimuthproject.org/azimuth/show/Experiments%20in%20El%20Ni%C3%B1o%20analysis%20and%20prediction)**. 
 
 #### R / netcdf-convertor.R.
 
@@ -29,7 +29,11 @@ The second column in this file lists the average link strengths S as computed by
 
 #### R / average-link-strength-daily.txt
 
-The second column in this file lists the average link strengths S as computed by Blake Pollard using a modified version of `ludescher.R` at daily intervals, starting from day 730, and going until day 24090, where day 1 is 1 January 1948. The first column numbers these items from 730 to 24090. For an explanation see [Part 4](http://johncarlosbaez.wordpress.com/2014/07/08/el-nino-project-part-4/) of the El Niño Project series.
+The second column in this file lists the average link strengths S as computed by Blake Pollard using a modified version of `ludescher.R` at daily intervals, starting from day 730 and going until day 24090, where day 1 is 1 January 1948. The first column numbers these items from 730 to 24090. For an explanation see [Part 4](http://johncarlosbaez.wordpress.com/2014/07/08/el-nino-project-part-4/) of the El Niño Project series.
+
+#### R / average-link-strength-monthly.txt
+
+The second column in this file lists the average link strengths S as computed by Blake Pollard using a modified version of `ludescher.R` at monthly intervals, starting from January 1950 and going until December 2013. The first column numbers these items from 1 to 768. For an explanation see [Part 4](http://johncarlosbaez.wordpress.com/2014/07/08/el-nino-project-part-4/) of the El Niño Project series.
 
 #### R / grj / covariances-basin-vs-rest.R
 
